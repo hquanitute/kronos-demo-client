@@ -1,0 +1,67 @@
+name: Forecast and Deploy
+
+on:
+  schedule:
+    # 01:00 UTC == 08:00 ICT (UTC+7), pre-market for HOSE.
+    - cron: "0 1 * * *"
+  workflow_dispatch: {}
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --locked
+
+      - name: Cache Kronos model weights
+        uses: actions/cache@v4
+        with:
+          path: .kronos_model_cache
+          # Bust the cache if the pin ever changes — update the version suffix manually.
+          key: kronos-weights-v1-NeoQuasar-Tokenizer2k-mini
+
+      - name: Run forecast
+        env:
+          KRONOS_MODEL_PATH: ./.kronos_model_cache
+        run: uv run python update_predictions.py
+
+      - name: Stage static site
+        run: |
+          mkdir -p _site
+          cp index.html style.css prediction_chart.png _site/
+          cp -r img _site/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

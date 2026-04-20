@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# uv / virtualenv
+.venv/
+
+# Kronos model weight caches (local sibling + CI cache dir)
+.kronos_model_cache/
+/../Kronos_model/
+
+# Pages build artifact staged by the forecast workflow
+_site/
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Env files
+.env
+.env.local
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

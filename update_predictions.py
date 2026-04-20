@@ -1,7 +1,6 @@
 import gc
 import os
 import re
-import subprocess
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -10,20 +9,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from binance.client import Client
+from pandas.tseries.offsets import BDay
+from vnstock import Vnstock
 
 from model import KronosTokenizer, Kronos, KronosPredictor
 
 # --- Configuration ---
+# MODEL_PATH is overridable so CI (GitHub Actions) can point it at a cache-friendly
+# path inside the workspace; locally it defaults to the sibling `../Kronos_model` dir.
 Config = {
     "REPO_PATH": Path(__file__).parent.resolve(),
-    "MODEL_PATH": "../Kronos_model",
-    "SYMBOL": 'BTCUSDT',
-    "INTERVAL": '1h',
-    "HIST_POINTS": 360,
-    "PRED_HORIZON": 24,
+    "MODEL_PATH": os.environ.get("KRONOS_MODEL_PATH", "../Kronos_model"),
+    "SYMBOL": 'BMP',
+    "EXCHANGE": 'HOSE',
+    "DATA_SOURCE": 'KBS',
+    "INTERVAL": '1D',
+    "HIST_POINTS": 360,     # daily bars (~1.5 years of trading days)
+    "PRED_HORIZON": 10,     # trading-day forecast horizon
     "N_PREDICTIONS": 30,
-    "VOL_WINDOW": 24,
+    "VOL_WINDOW": 20,       # ~1 month of trading days for baseline vol
 }
 
 
@@ -42,11 +46,11 @@ def load_model():
 def make_prediction(df, predictor):
     """Generates probabilistic forecasts using the Kronos model."""
     last_timestamp = df['timestamps'].max()
-    start_new_range = last_timestamp + pd.Timedelta(hours=1)
+    start_new_range = last_timestamp + BDay(1)
     new_timestamps_index = pd.date_range(
         start=start_new_range,
         periods=Config["PRED_HORIZON"],
-        freq='H'
+        freq='B'
     )
     y_timestamp = pd.Series(new_timestamps_index, name='y_timestamp')
     x_timestamp = df['timestamps']
@@ -75,43 +79,47 @@ def make_prediction(df, predictor):
     return close_preds_main, volume_preds_main, close_preds_volatility
 
 
-def fetch_binance_data():
-    """Fetches K-line data from the Binance public API."""
-    symbol, interval = Config["SYMBOL"], Config["INTERVAL"]
-    limit = Config["HIST_POINTS"] + Config["VOL_WINDOW"]
+def fetch_vnstock_data():
+    """Fetches daily OHLCV data for a HOSE ticker via vnstock."""
+    symbol = Config["SYMBOL"]
+    needed = Config["HIST_POINTS"] + Config["VOL_WINDOW"]
+    # Calendar buffer: ~1.55x to cover weekends/holidays, plus 30d headroom.
+    lookback_calendar_days = int(needed * 1.55) + 30
 
-    print(f"Fetching {limit} bars of {symbol} {interval} data from Binance...")
-    client = Client()
-    klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
+    end_date = datetime.now(timezone.utc).date()
+    start_date = end_date - timedelta(days=lookback_calendar_days)
 
-    cols = ['open_time', 'open', 'high', 'low', 'close', 'volume', 'close_time',
-            'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
-            'taker_buy_quote_asset_volume', 'ignore']
-    df = pd.DataFrame(klines, columns=cols)
+    print(f"Fetching {symbol} daily bars from {start_date} to {end_date} via vnstock ({Config['DATA_SOURCE']})...")
+    stock = Vnstock().stock(symbol=symbol, source=Config["DATA_SOURCE"])
+    df = stock.quote.history(
+        start=start_date.strftime('%Y-%m-%d'),
+        end=end_date.strftime('%Y-%m-%d'),
+        interval='1D',
+    )
 
-    df = df[['open_time', 'open', 'high', 'low', 'close', 'volume', 'quote_asset_volume']]
-    df.rename(columns={'quote_asset_volume': 'amount', 'open_time': 'timestamps'}, inplace=True)
-
-    df['timestamps'] = pd.to_datetime(df['timestamps'], unit='ms')
-    for col in ['open', 'high', 'low', 'close', 'volume', 'amount']:
+    df = df.rename(columns={'time': 'timestamps'})
+    df['timestamps'] = pd.to_datetime(df['timestamps'])
+    for col in ['open', 'high', 'low', 'close', 'volume']:
         df[col] = pd.to_numeric(df[col])
+    # vnstock does not return a quote volume; synthesize "amount" as volume * typical price
+    # so the Kronos predictor's amount feature is populated consistently with Binance-style data.
+    df['amount'] = df['volume'] * df[['open', 'high', 'low', 'close']].mean(axis=1)
 
-    print("Data fetched successfully.")
+    df = df[['timestamps', 'open', 'high', 'low', 'close', 'volume', 'amount']]
+    df = df.sort_values('timestamps').reset_index(drop=True)
+    df = df.tail(needed).reset_index(drop=True)
+
+    print(f"Data fetched successfully ({len(df)} bars, latest {df['timestamps'].iloc[-1].date()}).")
     return df
 
 
 def calculate_metrics(hist_df, close_preds_df, v_close_preds_df):
-    """
-    Calculates upside and volatility amplification probabilities for the 24h horizon.
-    """
+    """Calculates upside and volatility amplification probabilities over the forecast horizon."""
     last_close = hist_df['close'].iloc[-1]
 
-    # 1. Upside Probability (for the 24-hour horizon)
-    # This is the probability that the price at the end of the horizon is higher than now.
-    final_hour_preds = close_preds_df.iloc[-1]
-    upside_prob = (final_hour_preds > last_close).mean()
+    final_bar_preds = close_preds_df.iloc[-1]
+    upside_prob = (final_bar_preds > last_close).mean()
 
-    # 2. Volatility Amplification Probability (over the 24-hour horizon)
     hist_log_returns = np.log(hist_df['close'] / hist_df['close'].shift(1))
     historical_vol = hist_log_returns.iloc[-Config["VOL_WINDOW"]:].std()
 
@@ -125,7 +133,8 @@ def calculate_metrics(hist_df, close_preds_df, v_close_preds_df):
 
     vol_amp_prob = amplification_count / len(v_close_preds_df.columns)
 
-    print(f"Upside Probability (24h): {upside_prob:.2%}, Volatility Amplification Probability: {vol_amp_prob:.2%}")
+    horizon = Config["PRED_HORIZON"]
+    print(f"Upside Probability ({horizon}d): {upside_prob:.2%}, Volatility Amplification Probability: {vol_amp_prob:.2%}")
     return upside_prob, vol_amp_prob
 
 
@@ -139,26 +148,25 @@ def create_plot(hist_df, close_preds_df, volume_preds_df):
     )
 
     hist_time = hist_df['timestamps']
-    last_hist_time = hist_time.iloc[-1]
-    pred_time = pd.to_datetime([last_hist_time + timedelta(hours=i + 1) for i in range(len(close_preds_df))])
+    pred_time = pd.to_datetime(close_preds_df.index)
 
     ax1.plot(hist_time, hist_df['close'], color='royalblue', label='Historical Price', linewidth=1.5)
     mean_preds = close_preds_df.mean(axis=1)
     ax1.plot(pred_time, mean_preds, color='darkorange', linestyle='-', label='Mean Forecast')
     ax1.fill_between(pred_time, close_preds_df.min(axis=1), close_preds_df.max(axis=1), color='darkorange', alpha=0.2, label='Forecast Range (Min-Max)')
-    ax1.set_title(f'{Config["SYMBOL"]} Probabilistic Price & Volume Forecast (Next {Config["PRED_HORIZON"]} Hours)', fontsize=16, weight='bold')
-    ax1.set_ylabel('Price (USDT)')
+    ax1.set_title(f'{Config["SYMBOL"]} ({Config["EXCHANGE"]}) Probabilistic Price & Volume Forecast (Next {Config["PRED_HORIZON"]} Trading Days)', fontsize=16, weight='bold')
+    ax1.set_ylabel('Price (VND)')
     ax1.legend()
     ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
 
-    ax2.bar(hist_time, hist_df['volume'], color='skyblue', label='Historical Volume', width=0.03)
-    ax2.bar(pred_time, volume_preds_df.mean(axis=1), color='sandybrown', label='Mean Forecasted Volume', width=0.03)
+    ax2.bar(hist_time, hist_df['volume'], color='skyblue', label='Historical Volume', width=0.8)
+    ax2.bar(pred_time, volume_preds_df.mean(axis=1), color='sandybrown', label='Mean Forecasted Volume', width=0.8)
     ax2.set_ylabel('Volume')
-    ax2.set_xlabel('Time (UTC)')
+    ax2.set_xlabel('Date')
     ax2.legend()
     ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
 
-    separator_time = hist_time.iloc[-1] + timedelta(minutes=30)
+    separator_time = hist_time.iloc[-1] + timedelta(hours=12)
     for ax in [ax1, ax2]:
         ax.axvline(x=separator_time, color='red', linestyle='--', linewidth=1.5, label='_nolegend_')
         ax.tick_params(axis='x', rotation=30)
@@ -206,77 +214,30 @@ def update_html(upside_prob, vol_amp_prob):
     print("HTML file updated successfully.")
 
 
-def git_commit_and_push(commit_message):
-    """Adds, commits, and pushes specified files to the Git repository."""
-    print("Performing Git operations...")
-    try:
-        os.chdir(Config["REPO_PATH"])
-        subprocess.run(['git', 'add', 'prediction_chart.png', 'index.html'], check=True, capture_output=True, text=True)
-        commit_result = subprocess.run(['git', 'commit', '-m', commit_message], check=True, capture_output=True, text=True)
-        print(commit_result.stdout)
-        push_result = subprocess.run(['git', 'push'], check=True, capture_output=True, text=True)
-        print(push_result.stdout)
-        print("Git push successful.")
-    except subprocess.CalledProcessError as e:
-        output = e.stdout if e.stdout else e.stderr
-        if "nothing to commit" in output or "Your branch is up to date" in output:
-            print("No new changes to commit or push.")
-        else:
-            print(f"A Git error occurred:\n--- STDOUT ---\n{e.stdout}\n--- STDERR ---\n{e.stderr}")
-
-
 def main_task(model):
-    """Executes one full update cycle."""
+    """Executes one full update cycle.
+
+    Pure compute: fetches data, runs the model, rewrites `index.html` and
+    `prediction_chart.png`. Commit + deploy are handled by the GitHub Actions
+    workflow (`.github/workflows/forecast.yml`), not by this script.
+    """
     print("\n" + "=" * 60 + f"\nStarting update task at {datetime.now(timezone.utc)}\n" + "=" * 60)
-    df_full = fetch_binance_data()
-    df_for_model = df_full.iloc[:-1]
+    df_full = fetch_vnstock_data()
 
-    close_preds, volume_preds, v_close_preds = make_prediction(df_for_model, model)
+    close_preds, volume_preds, v_close_preds = make_prediction(df_full, model)
 
-    hist_df_for_plot = df_for_model.tail(Config["HIST_POINTS"])
-    hist_df_for_metrics = df_for_model.tail(Config["VOL_WINDOW"])
+    hist_df_for_plot = df_full.tail(Config["HIST_POINTS"])
+    hist_df_for_metrics = df_full.tail(Config["VOL_WINDOW"])
 
     upside_prob, vol_amp_prob = calculate_metrics(hist_df_for_metrics, close_preds, v_close_preds)
     create_plot(hist_df_for_plot, close_preds, volume_preds)
     update_html(upside_prob, vol_amp_prob)
 
-    commit_message = f"Auto-update forecast for {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC"
-    git_commit_and_push(commit_message)
-
-    # --- 新增的内存清理步骤 ---
-    # 显式删除大的DataFrame对象，帮助垃圾回收器
-    del df_full, df_for_model, close_preds, volume_preds, v_close_preds
+    del df_full, close_preds, volume_preds, v_close_preds
     del hist_df_for_plot, hist_df_for_metrics
-
-    # 强制执行垃圾回收
     gc.collect()
-    # --- 内存清理结束 ---
 
     print("-" * 60 + "\n--- Task completed successfully ---\n" + "-" * 60 + "\n")
-
-
-def run_scheduler(model):
-    """A continuous scheduler that runs the main task hourly."""
-    while True:
-        now = datetime.now(timezone.utc)
-        next_run_time = (now + timedelta(hours=1)).replace(minute=0, second=5, microsecond=0)
-        sleep_seconds = (next_run_time - now).total_seconds()
-
-        if sleep_seconds > 0:
-            print(f"Current time: {now:%Y-%m-%d %H:%M:%S UTC}.")
-            print(f"Next run at: {next_run_time:%Y-%m-%d %H:%M:%S UTC}. Waiting for {sleep_seconds:.0f} seconds...")
-            time.sleep(sleep_seconds)
-
-        try:
-            main_task(model)
-        except Exception as e:
-            print(f"\n!!!!!! A critical error occurred in the main task !!!!!!!")
-            print(f"Error: {e}")
-            import traceback
-            traceback.print_exc()
-            print("Retrying in 5 minutes...")
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
-            time.sleep(300)
 
 
 if __name__ == '__main__':
@@ -284,5 +245,4 @@ if __name__ == '__main__':
     model_path.mkdir(parents=True, exist_ok=True)
 
     loaded_model = load_model()
-    main_task(loaded_model)  # Run once on startup
-    run_scheduler(loaded_model)  # Start the schedule
+    main_task(loaded_model)
