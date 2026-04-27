@@ -47,7 +47,7 @@ jobs:
       - name: Stage static site
         run: |
           mkdir -p _site
-          cp index.html style.css prediction_chart.png _site/
+          cp index.html style.css prediction_chart_*.png _site/
           cp -r img _site/
 
       - name: Upload Pages artifact
