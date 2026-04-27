@@ -37,6 +37,31 @@ uv add <pkg>                         # add a new dep (never `pip install`)
 - `model/` — vendored copy of the Kronos model code. `kronos.py` defines `KronosTokenizer`, `Kronos` (both `PyTorchModelHubMixin` — loaded via `from_pretrained`), and `KronosPredictor` (the inference wrapper used by `update_predictions.py`). `module.py` holds the transformer blocks and `BSQuantizer`. Treat this directory as upstream code — prefer not to edit it unless syncing from the Kronos repo.
 - `index.html`, `style.css`, `img/logo.png`, `prediction_chart.png` — the static site served by GitHub Pages.
 
+## How Kronos inference works
+
+`make_prediction()` → `KronosPredictor.predict()` → `auto_regressive_inference()` in `model/kronos.py`.
+
+**Step 1 — normalize.** The 6-feature input matrix (`open,high,low,close,volume,amount`, shape `[hist_points, 6]`) is z-scored column-wise using its own mean/std, then clipped to ±5 σ.
+
+**Step 2 — tokenize (encode).** `KronosTokenizer` runs an encoder Transformer and passes the result through **Binary Spherical Quantization (BSQuantizer)**, splitting each latent into two levels: a coarse `s1` token and a fine `s2` token conditioned on `s1`. The `half=True` flag used at inference uses only the `s2`-level quantization path.
+
+**Step 3 — autoregressive decoding (Monte-Carlo sampling).** The context is replicated `N_PREDICTIONS` (30) times in a single batched forward pass. For each of the `PRED_HORIZON` (10) forecast steps:
+1. `model.decode_s1(tokens, stamp)` produces `s1` logits → sampled via `top_p=0.95` nucleus sampling at `T=1.0`.
+2. `model.decode_s2(context, s1_sample)` produces `s2` logits → sampled the same way.
+3. The new `(s1, s2)` token pair is appended to the token sequence; repeat.
+
+Time-stamp features (`minute, hour, weekday, day, month`) are passed as a separate `x_stamp` / `y_stamp` tensor alongside the token sequence.
+
+**Step 4 — decode & de-normalize.** The final token sequence is decoded back to the feature space by `tokenizer.decode()`, clipped to the last `pred_len` steps, then de-normalized with the original mean/std to recover price-scale values.
+
+**Step 5 — extract outputs.** Column index 3 (close) and 4 (volume) are sliced from the decoded tensor. The result is a `DataFrame[pred_horizon × n_predictions]` — 30 independent close-price trajectories over 10 trading days.
+
+**What the metrics use.** `calculate_metrics()` computes:
+- *Upside probability*: fraction of paths whose final-bar close > last known close.
+- *Volatility amplification probability*: fraction of paths whose realized log-return stdev exceeds the `VOL_WINDOW`-day historical stdev.
+
+The "volatility" paths currently reuse the main prediction (`close_preds_volatility = close_preds_main`) — the commented-out second `predictor.predict` call at `T=0.9` would have been a separate lower-temperature sample.
+
 ## Forecast config
 
 Tuning knobs live in the `Config` dict at the top of `update_predictions.py`:
