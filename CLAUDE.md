@@ -43,7 +43,7 @@ uv add <pkg>                         # add a new dep (never `pip install`)
 
 **Step 1 — normalize.** The 6-feature input matrix (`open,high,low,close,volume,amount`, shape `[hist_points, 6]`) is z-scored column-wise using its own mean/std, then clipped to ±5 σ.
 
-**Step 2 — tokenize (encode).** `KronosTokenizer` runs an encoder Transformer that compresses the input into a two-level token sequence: a coarse `s1` token and a fine `s2` token conditioned on `s1`. The `half=True` flag used at inference uses only the `s2`-level path.
+**Step 2 — tokenize (encode).** `KronosTokenizer` runs an encoder Transformer that compresses the input into a two-level token sequence: a coarse `s1` token and a fine `s2` token conditioned on `s1`.
 
 **Step 3 — autoregressive decoding (Monte-Carlo sampling).** The context is replicated `N_PREDICTIONS` (30) times in a single batched forward pass. For each of the `PRED_HORIZON` (10) forecast steps:
 1. `model.decode_s1(tokens, stamp)` produces `s1` logits → sampled via `top_p=0.95` nucleus sampling at `T=1.0`.
