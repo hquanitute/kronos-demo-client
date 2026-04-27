@@ -26,8 +26,26 @@
                 <span>Data Source: vnstock (KBS) | Interval: Daily</span>
             </div>
 
+            <!-- Summary Table -->
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Upside Probability (Next 10 Trading Days)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><a href="#symbol-BMP">BMP</a></td><td id="tbl-upside-BMP">–</td></tr>
+                    <tr><td><a href="#symbol-D2D">D2D</a></td><td id="tbl-upside-D2D">–</td></tr>
+                    <tr><td><a href="#symbol-PC1">PC1</a></td><td id="tbl-upside-PC1">–</td></tr>
+                    <tr><td><a href="#symbol-LPB">LPB</a></td><td id="tbl-upside-LPB">–</td></tr>
+                    <tr><td><a href="#symbol-FPT">FPT</a></td><td id="tbl-upside-FPT">–</td></tr>
+                    <tr><td><a href="#symbol-TCB">TCB</a></td><td id="tbl-upside-TCB">–</td></tr>
+                </tbody>
+            </table>
+
             <!-- BMP -->
-            <div class="symbol-block">
+            <div class="symbol-block" id="symbol-BMP">
                 <h3 class="symbol-title">BMP <span class="exchange-tag">HOSE</span></h3>
                 <div class="metrics-container">
                     <div class="metric-card">
@@ -47,7 +65,7 @@
             </div>
 
             <!-- D2D -->
-            <div class="symbol-block">
+            <div class="symbol-block" id="symbol-D2D">
                 <h3 class="symbol-title">D2D <span class="exchange-tag">HOSE</span></h3>
                 <div class="metrics-container">
                     <div class="metric-card">
@@ -67,7 +85,7 @@
             </div>
 
             <!-- PC1 -->
-            <div class="symbol-block">
+            <div class="symbol-block" id="symbol-PC1">
                 <h3 class="symbol-title">PC1 <span class="exchange-tag">HOSE</span></h3>
                 <div class="metrics-container">
                     <div class="metric-card">
@@ -87,7 +105,7 @@
             </div>
 
             <!-- LPB -->
-            <div class="symbol-block">
+            <div class="symbol-block" id="symbol-LPB">
                 <h3 class="symbol-title">LPB <span class="exchange-tag">HOSE</span></h3>
                 <div class="metrics-container">
                     <div class="metric-card">
@@ -107,7 +125,7 @@
             </div>
 
             <!-- FPT -->
-            <div class="symbol-block">
+            <div class="symbol-block" id="symbol-FPT">
                 <h3 class="symbol-title">FPT <span class="exchange-tag">HOSE</span></h3>
                 <div class="metrics-container">
                     <div class="metric-card">
@@ -127,7 +145,7 @@
             </div>
 
             <!-- TCB -->
-            <div class="symbol-block">
+            <div class="symbol-block" id="symbol-TCB">
                 <h3 class="symbol-title">TCB <span class="exchange-tag">HOSE</span></h3>
                 <div class="metrics-container">
                     <div class="metric-card">
@@ -177,5 +195,12 @@
             <p>&copy; 2025 The Kronos Project. Licensed under the MIT License.</p>
         </div>
     </footer>
+    <script>
+        ['BMP','D2D','PC1','LPB','FPT','TCB'].forEach(function(s) {
+            var src = document.getElementById('upside-prob-' + s);
+            var dst = document.getElementById('tbl-upside-' + s);
+            if (src && dst) dst.textContent = src.textContent;
+        });
+    </script>
 </body>
 </html>

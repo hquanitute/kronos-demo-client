@@ -247,6 +247,50 @@ footer {
     font-size: 0.9rem;
 }
 
+/* --- Summary Table --- */
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0 2rem;
+    background: var(--card-bg-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.summary-table th,
+.summary-table td {
+    padding: 0.75rem 1.25rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.95rem;
+}
+
+.summary-table thead th {
+    background: var(--secondary-color);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+.summary-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.summary-table tbody tr:hover {
+    background: var(--background-color);
+}
+
+.summary-table td a {
+    font-weight: 600;
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.summary-table td a:hover {
+    text-decoration: underline;
+}
+
 /* --- Responsive Design --- */
 @media (max-width: 768px) {
     header .project-title { font-size: 2.2rem; }
