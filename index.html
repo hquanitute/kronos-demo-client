@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kronos Live Forecast | BMP (HOSE)</title>
+    <title>Kronos Live Forecast | D2D (HOSE)</title>
     <link rel="icon" type="image/png" href="img/logo.png">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Slab:wght@400;700&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
     <main class="container">
         <!-- Section 1: The Live Dashboard -->
         <section id="live-dashboard">
-            <h2>Live BMP (HOSE) Forecast Dashboard</h2>
+            <h2>Live D2D (HOSE) Forecast Dashboard</h2>
             <div class="metadata">
                 <span>Last Updated (UTC): <strong id="update-time">2026-04-20 04:37:43</strong></span>
                 <span>Data Source: vnstock (KBS) | Interval: Daily</span>
@@ -43,7 +43,7 @@
                 <h3>10-Day Probabilistic Forecast</h3>
                 <p>The chart below shows the historical price (blue) and the probabilistic forecast (orange). The orange line is the mean of multiple Monte Carlo simulations, and the shaded area represents the full range of predicted outcomes, indicating forecast uncertainty.</p>
                 <div class="chart-container">
-                    <img src="prediction_chart.png" alt="BMP (HOSE) Price and Volume Forecast Chart" class="chart-img">
+                    <img src="prediction_chart.png" alt="D2D (HOSE) Price and Volume Forecast Chart" class="chart-img">
                 </div>
             </div>
         </section>
@@ -54,7 +54,7 @@
             <p>This demo showcases the forecasting results of <strong>Kronos</strong>, a foundation model pre-trained on the "language" of financial markets. The predictions are generated using the following process:</p>
             <ul>
                 <li><strong>Model:</strong> The `Kronos-mini` (4M parameters) model is used to autoregressively predict future K-line data.</li>
-                <li><strong>Data Context:</strong> The model uses the last ~360 trading days (~1.5 years) of BMP daily K-line data, fetched via vnstock, as context for each new prediction.</li>
+                <li><strong>Data Context:</strong> The model uses the last ~360 trading days (~1.5 years) of D2D daily K-line data, fetched via vnstock, as context for each new prediction.</li>
                 <li><strong>Probabilistic Forecasting:</strong> We employ Monte Carlo sampling (N=30 paths) over a 10-trading-day horizon to generate a distribution of possible future price trajectories, not just a single point forecast.</li>
                 <li><strong>Schedule:</strong> A fresh forecast is produced once per day at 08:00 ICT (UTC+7), before HOSE opens, using the previous session's settled close.</li>
                 <li><strong>Derived Insights:</strong> The resulting distribution is analyzed to produce the mean forecast (solid line), the uncertainty range (shaded area), and the key probability metrics shown above.</li>
