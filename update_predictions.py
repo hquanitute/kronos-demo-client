@@ -20,7 +20,7 @@ from model import KronosTokenizer, Kronos, KronosPredictor
 Config = {
     "REPO_PATH": Path(__file__).parent.resolve(),
     "MODEL_PATH": os.environ.get("KRONOS_MODEL_PATH", "../Kronos_model"),
-    "SYMBOL": 'BMP',
+    "SYMBOLS": ['BMP', 'D2D', 'BSR', 'LPB', 'FPT', 'TCB'],
     "EXCHANGE": 'HOSE',
     "DATA_SOURCE": 'KBS',
     "INTERVAL": '1D',
@@ -79,9 +79,8 @@ def make_prediction(df, predictor):
     return close_preds_main, volume_preds_main, close_preds_volatility
 
 
-def fetch_vnstock_data():
+def fetch_vnstock_data(symbol):
     """Fetches daily OHLCV data for a HOSE ticker via vnstock."""
-    symbol = Config["SYMBOL"]
     needed = Config["HIST_POINTS"] + Config["VOL_WINDOW"]
     # Calendar buffer: ~1.55x to cover weekends/holidays, plus 30d headroom.
     lookback_calendar_days = int(needed * 1.55) + 30
@@ -138,10 +137,9 @@ def calculate_metrics(hist_df, close_preds_df, v_close_preds_df):
     return upside_prob, vol_amp_prob
 
 
-def create_plot(hist_df, close_preds_df, volume_preds_df):
-    """Generates and saves a comprehensive forecast chart."""
-    print("Generating comprehensive forecast chart...")
-    # plt.style.use('seaborn-v0_8-whitegrid')
+def create_plot(hist_df, close_preds_df, volume_preds_df, symbol):
+    """Generates and saves a forecast chart for a single symbol."""
+    print(f"Generating forecast chart for {symbol}...")
     fig, (ax1, ax2) = plt.subplots(
         2, 1, figsize=(15, 10), sharex=True,
         gridspec_kw={'height_ratios': [3, 1]}
@@ -154,7 +152,7 @@ def create_plot(hist_df, close_preds_df, volume_preds_df):
     mean_preds = close_preds_df.mean(axis=1)
     ax1.plot(pred_time, mean_preds, color='darkorange', linestyle='-', label='Mean Forecast')
     ax1.fill_between(pred_time, close_preds_df.min(axis=1), close_preds_df.max(axis=1), color='darkorange', alpha=0.2, label='Forecast Range (Min-Max)')
-    ax1.set_title(f'{Config["SYMBOL"]} ({Config["EXCHANGE"]}) Probabilistic Price & Volume Forecast (Next {Config["PRED_HORIZON"]} Trading Days)', fontsize=16, weight='bold')
+    ax1.set_title(f'{symbol} ({Config["EXCHANGE"]}) Probabilistic Price & Volume Forecast (Next {Config["PRED_HORIZON"]} Trading Days)', fontsize=16, weight='bold')
     ax1.set_ylabel('Price (VND)')
     ax1.legend()
     ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
@@ -172,42 +170,39 @@ def create_plot(hist_df, close_preds_df, volume_preds_df):
         ax.tick_params(axis='x', rotation=30)
 
     fig.tight_layout()
-    chart_path = Config["REPO_PATH"] / 'prediction_chart.png'
+    chart_path = Config["REPO_PATH"] / f'prediction_chart_{symbol}.png'
     fig.savefig(chart_path, dpi=120)
     plt.close(fig)
     print(f"Chart saved to: {chart_path}")
 
 
-def update_html(upside_prob, vol_amp_prob):
-    """
-    Updates the index.html file with the latest metrics and timestamp.
-    This version uses a more robust lambda function for replacement to avoid formatting errors.
-    """
+def update_html(now_utc_str, results):
+    """Updates index.html with the latest metrics and timestamp for all symbols."""
     print("Updating index.html...")
     html_path = Config["REPO_PATH"] / 'index.html'
-    now_utc_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-    upside_prob_str = f'{upside_prob:.1%}'
-    vol_amp_prob_str = f'{vol_amp_prob:.1%}'
 
     with open(html_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Robustly replace content using lambda functions
     content = re.sub(
         r'(<strong id="update-time">).*?(</strong>)',
         lambda m: f'{m.group(1)}{now_utc_str}{m.group(2)}',
         content
     )
-    content = re.sub(
-        r'(<p class="metric-value" id="upside-prob">).*?(</p>)',
-        lambda m: f'{m.group(1)}{upside_prob_str}{m.group(2)}',
-        content
-    )
-    content = re.sub(
-        r'(<p class="metric-value" id="vol-amp-prob">).*?(</p>)',
-        lambda m: f'{m.group(1)}{vol_amp_prob_str}{m.group(2)}',
-        content
-    )
+
+    for symbol, metrics in results.items():
+        upside_str = f"{metrics['upside_prob']:.1%}"
+        vol_str = f"{metrics['vol_amp_prob']:.1%}"
+        content = re.sub(
+            rf'(<p class="metric-value" id="upside-prob-{symbol}">).*?(</p>)',
+            lambda m, s=upside_str: f'{m.group(1)}{s}{m.group(2)}',
+            content
+        )
+        content = re.sub(
+            rf'(<p class="metric-value" id="vol-amp-prob-{symbol}">).*?(</p>)',
+            lambda m, s=vol_str: f'{m.group(1)}{s}{m.group(2)}',
+            content
+        )
 
     with open(html_path, 'w', encoding='utf-8') as f:
         f.write(content)
@@ -215,29 +210,39 @@ def update_html(upside_prob, vol_amp_prob):
 
 
 def main_task(model):
-    """Executes one full update cycle.
+    """Executes one full update cycle for all configured symbols.
 
     Pure compute: fetches data, runs the model, rewrites `index.html` and
-    `prediction_chart.png`. Commit + deploy are handled by the GitHub Actions
-    workflow (`.github/workflows/forecast.yml`), not by this script.
+    per-symbol `prediction_chart_{SYMBOL}.png` files. Commit + deploy are
+    handled by the GitHub Actions workflow (`.github/workflows/forecast.yml`),
+    not by this script.
     """
     print("\n" + "=" * 60 + f"\nStarting update task at {datetime.now(timezone.utc)}\n" + "=" * 60)
-    df_full = fetch_vnstock_data()
+    now_utc_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    results = {}
 
-    close_preds, volume_preds, v_close_preds = make_prediction(df_full, model)
+    for symbol in Config["SYMBOLS"]:
+        print(f"\n{'=' * 40}\nProcessing symbol: {symbol}\n{'=' * 40}")
+        try:
+            df_full = fetch_vnstock_data(symbol)
+            close_preds, volume_preds, v_close_preds = make_prediction(df_full, model)
 
-    hist_df_for_plot = df_full.tail(Config["HIST_POINTS"])
-    hist_df_for_metrics = df_full.tail(Config["VOL_WINDOW"])
+            hist_df_for_plot = df_full.tail(Config["HIST_POINTS"])
+            hist_df_for_metrics = df_full.tail(Config["VOL_WINDOW"])
 
-    upside_prob, vol_amp_prob = calculate_metrics(hist_df_for_metrics, close_preds, v_close_preds)
-    create_plot(hist_df_for_plot, close_preds, volume_preds)
-    update_html(upside_prob, vol_amp_prob)
+            upside_prob, vol_amp_prob = calculate_metrics(hist_df_for_metrics, close_preds, v_close_preds)
+            create_plot(hist_df_for_plot, close_preds, volume_preds, symbol)
 
-    del df_full, close_preds, volume_preds, v_close_preds
-    del hist_df_for_plot, hist_df_for_metrics
-    gc.collect()
+            results[symbol] = {'upside_prob': upside_prob, 'vol_amp_prob': vol_amp_prob}
 
-    print("-" * 60 + "\n--- Task completed successfully ---\n" + "-" * 60 + "\n")
+            del df_full, close_preds, volume_preds, v_close_preds
+            del hist_df_for_plot, hist_df_for_metrics
+            gc.collect()
+        except Exception as e:
+            print(f"ERROR: Failed to process {symbol}: {e}")
+
+    update_html(now_utc_str, results)
+    print("-" * 60 + "\n--- All tasks completed ---\n" + "-" * 60 + "\n")
 
 
 if __name__ == '__main__':

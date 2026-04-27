@@ -165,6 +165,33 @@ section {
     border-radius: 8px;
 }
 
+/* --- Symbol Blocks inside Live Dashboard --- */
+.symbol-block {
+    border-top: 2px solid var(--border-color);
+    padding-top: 2rem;
+    margin-top: 2rem;
+}
+
+.symbol-title {
+    font-size: 1.6rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--secondary-color);
+}
+
+.exchange-tag {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    background: #eaf4fd;
+    border: 1px solid #c4e0f7;
+    border-radius: 4px;
+    padding: 0.1rem 0.5rem;
+    vertical-align: middle;
+    margin-left: 0.4rem;
+    font-family: 'Inter', sans-serif;
+}
+
 /* --- Methodology & About Sections --- */
 #methodology ul {
     list-style-type: disc;
