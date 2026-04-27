@@ -20,7 +20,7 @@ from model import KronosTokenizer, Kronos, KronosPredictor
 Config = {
     "REPO_PATH": Path(__file__).parent.resolve(),
     "MODEL_PATH": os.environ.get("KRONOS_MODEL_PATH", "../Kronos_model"),
-    "SYMBOLS": ['BMP', 'D2D', 'BSR', 'LPB', 'FPT', 'TCB'],
+    "SYMBOLS": ['BMP', 'D2D', 'LPB', 'FPT', 'TCB'],
     "EXCHANGE": 'HOSE',
     "DATA_SOURCE": 'KBS',
     "INTERVAL": '1D',
