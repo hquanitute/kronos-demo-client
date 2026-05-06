@@ -3,7 +3,7 @@ name: Forecast and Deploy
 on:
   schedule:
     # 08:00 ICT (UTC+7), pre-market for HOSE.
-    - cron: "0 8 * * *"
+    - cron: "0 3 * * *"
       timezone: Asia/Bangkok
   workflow_dispatch:
     inputs:
