@@ -1,6 +1,6 @@
 import gc
+import json
 import os
-import re
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -20,7 +20,7 @@ from model import KronosTokenizer, Kronos, KronosPredictor
 Config = {
     "REPO_PATH": Path(__file__).parent.resolve(),
     "MODEL_PATH": os.environ.get("KRONOS_MODEL_PATH", "../Kronos_model"),
-    "SYMBOLS": ['BMP', 'D2D', 'PC1', 'LPB', 'FPT', 'TCB'],
+    "SYMBOLS": [s.strip() for s in os.environ.get("KRONOS_SYMBOLS", "BMP,D2D,PC1,LPB,FPT,TCB").split(",") if s.strip()],
     "EXCHANGE": 'HOSE',
     "DATA_SOURCE": 'KBS',
     "INTERVAL": '1D',
@@ -176,37 +176,24 @@ def create_plot(hist_df, close_preds_df, volume_preds_df, symbol):
     print(f"Chart saved to: {chart_path}")
 
 
-def update_html(now_utc_str, results):
-    """Updates index.html with the latest metrics and timestamp for all symbols."""
-    print("Updating index.html...")
-    html_path = Config["REPO_PATH"] / 'index.html'
-
-    with open(html_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    content = re.sub(
-        r'(<strong id="update-time">).*?(</strong>)',
-        lambda m: f'{m.group(1)}{now_utc_str}{m.group(2)}',
-        content
-    )
-
-    for symbol, metrics in results.items():
-        upside_str = f"{metrics['upside_prob']:.1%}"
-        vol_str = f"{metrics['vol_amp_prob']:.1%}"
-        content = re.sub(
-            rf'(<p class="metric-value" id="upside-prob-{symbol}">).*?(</p>)',
-            lambda m, s=upside_str: f'{m.group(1)}{s}{m.group(2)}',
-            content
-        )
-        content = re.sub(
-            rf'(<p class="metric-value" id="vol-amp-prob-{symbol}">).*?(</p>)',
-            lambda m, s=vol_str: f'{m.group(1)}{s}{m.group(2)}',
-            content
-        )
-
-    with open(html_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    print("HTML file updated successfully.")
+def write_data_json(now_utc_str, results):
+    """Writes data.json consumed by index.html to render the dashboard."""
+    print("Writing data.json...")
+    data_path = Config["REPO_PATH"] / 'data.json'
+    payload = {
+        "updated": now_utc_str,
+        "symbols": [
+            {
+                "symbol": symbol,
+                "upside_prob": float(metrics['upside_prob']),
+                "vol_amp_prob": float(metrics['vol_amp_prob']),
+            }
+            for symbol, metrics in results.items()
+        ],
+    }
+    with open(data_path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2)
+    print(f"data.json written ({len(payload['symbols'])} symbols).")
 
 
 def main_task(model):
@@ -241,7 +228,7 @@ def main_task(model):
         except Exception as e:
             print(f"ERROR: Failed to process {symbol}: {e}")
 
-    update_html(now_utc_str, results)
+    write_data_json(now_utc_str, results)
     print("-" * 60 + "\n--- All tasks completed ---\n" + "-" * 60 + "\n")
 
 

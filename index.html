@@ -18,7 +18,6 @@
     </header>
 
     <main class="container">
-        <!-- Section 1: The Live Dashboard -->
         <section id="live-dashboard">
             <h2>Live HOSE Forecast Dashboard</h2>
             <div class="metadata">
@@ -26,7 +25,6 @@
                 <span>Data Source: vnstock (KBS) | Interval: Daily</span>
             </div>
 
-            <!-- Summary Table -->
             <table class="summary-table">
                 <thead>
                     <tr>
@@ -34,139 +32,12 @@
                         <th>Upside Probability (Next 10 Trading Days)</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr><td><a href="#symbol-BMP">BMP</a></td><td id="tbl-upside-BMP">–</td></tr>
-                    <tr><td><a href="#symbol-D2D">D2D</a></td><td id="tbl-upside-D2D">–</td></tr>
-                    <tr><td><a href="#symbol-PC1">PC1</a></td><td id="tbl-upside-PC1">–</td></tr>
-                    <tr><td><a href="#symbol-LPB">LPB</a></td><td id="tbl-upside-LPB">–</td></tr>
-                    <tr><td><a href="#symbol-FPT">FPT</a></td><td id="tbl-upside-FPT">–</td></tr>
-                    <tr><td><a href="#symbol-TCB">TCB</a></td><td id="tbl-upside-TCB">–</td></tr>
-                </tbody>
+                <tbody id="summary-tbody"></tbody>
             </table>
 
-            <!-- BMP -->
-            <div class="symbol-block" id="symbol-BMP">
-                <h3 class="symbol-title">BMP <span class="exchange-tag">HOSE</span></h3>
-                <div class="metrics-container">
-                    <div class="metric-card">
-                        <h3>Upside Probability (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="upside-prob-BMP">–</p>
-                        <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>Volatility Amplification (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="vol-amp-prob-BMP">–</p>
-                        <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <img src="prediction_chart_BMP.png" alt="BMP (HOSE) Price and Volume Forecast Chart" class="chart-img">
-                </div>
-            </div>
-
-            <!-- D2D -->
-            <div class="symbol-block" id="symbol-D2D">
-                <h3 class="symbol-title">D2D <span class="exchange-tag">HOSE</span></h3>
-                <div class="metrics-container">
-                    <div class="metric-card">
-                        <h3>Upside Probability (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="upside-prob-D2D">–</p>
-                        <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>Volatility Amplification (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="vol-amp-prob-D2D">–</p>
-                        <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <img src="prediction_chart_D2D.png" alt="D2D (HOSE) Price and Volume Forecast Chart" class="chart-img">
-                </div>
-            </div>
-
-            <!-- PC1 -->
-            <div class="symbol-block" id="symbol-PC1">
-                <h3 class="symbol-title">PC1 <span class="exchange-tag">HOSE</span></h3>
-                <div class="metrics-container">
-                    <div class="metric-card">
-                        <h3>Upside Probability (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="upside-prob-PC1">–</p>
-                        <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>Volatility Amplification (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="vol-amp-prob-PC1">–</p>
-                        <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <img src="prediction_chart_PC1.png" alt="PC1 (HOSE) Price and Volume Forecast Chart" class="chart-img">
-                </div>
-            </div>
-
-            <!-- LPB -->
-            <div class="symbol-block" id="symbol-LPB">
-                <h3 class="symbol-title">LPB <span class="exchange-tag">HOSE</span></h3>
-                <div class="metrics-container">
-                    <div class="metric-card">
-                        <h3>Upside Probability (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="upside-prob-LPB">–</p>
-                        <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>Volatility Amplification (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="vol-amp-prob-LPB">–</p>
-                        <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <img src="prediction_chart_LPB.png" alt="LPB (HOSE) Price and Volume Forecast Chart" class="chart-img">
-                </div>
-            </div>
-
-            <!-- FPT -->
-            <div class="symbol-block" id="symbol-FPT">
-                <h3 class="symbol-title">FPT <span class="exchange-tag">HOSE</span></h3>
-                <div class="metrics-container">
-                    <div class="metric-card">
-                        <h3>Upside Probability (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="upside-prob-FPT">–</p>
-                        <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>Volatility Amplification (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="vol-amp-prob-FPT">–</p>
-                        <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <img src="prediction_chart_FPT.png" alt="FPT (HOSE) Price and Volume Forecast Chart" class="chart-img">
-                </div>
-            </div>
-
-            <!-- TCB -->
-            <div class="symbol-block" id="symbol-TCB">
-                <h3 class="symbol-title">TCB <span class="exchange-tag">HOSE</span></h3>
-                <div class="metrics-container">
-                    <div class="metric-card">
-                        <h3>Upside Probability (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="upside-prob-TCB">–</p>
-                        <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>Volatility Amplification (Next 10 Trading Days)</h3>
-                        <p class="metric-value" id="vol-amp-prob-TCB">–</p>
-                        <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <img src="prediction_chart_TCB.png" alt="TCB (HOSE) Price and Volume Forecast Chart" class="chart-img">
-                </div>
-            </div>
-
+            <div id="symbol-blocks"></div>
         </section>
 
-        <!-- Section 2: Methodology -->
         <section id="methodology">
             <h2>Methodology Overview</h2>
             <p>This demo showcases the forecasting results of <strong>Kronos</strong>, a foundation model pre-trained on the "language" of financial markets. The predictions are generated using the following process:</p>
@@ -179,7 +50,6 @@
             </ul>
         </section>
 
-        <!-- Section 3: About the Project -->
         <section id="about-project">
             <h2>About The Kronos Project</h2>
             <p>Kronos is the first open-source foundation model for financial candlesticks (K-lines), trained on data from over 45 global exchanges. It is designed to serve as a unified model for diverse quantitative finance tasks. </p>
@@ -195,12 +65,63 @@
             <p>&copy; 2025 The Kronos Project. Licensed under the MIT License.</p>
         </div>
     </footer>
+
+    <template id="symbol-template">
+        <div class="symbol-block">
+            <h3 class="symbol-title"><span class="sym"></span> <span class="exchange-tag">HOSE</span></h3>
+            <div class="metrics-container">
+                <div class="metric-card">
+                    <h3>Upside Probability (Next 10 Trading Days)</h3>
+                    <p class="metric-value upside">–</p>
+                    <div class="metric-desc">Share of simulated paths whose final-bar close exceeds the last known close.</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Volatility Amplification (Next 10 Trading Days)</h3>
+                    <p class="metric-value volamp">–</p>
+                    <div class="metric-desc">Share of paths whose realized log-return stdev exceeds recent historical stdev.</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <img class="chart-img" alt="">
+            </div>
+        </div>
+    </template>
+
     <script>
-        ['BMP','D2D','PC1','LPB','FPT','TCB'].forEach(function(s) {
-            var src = document.getElementById('upside-prob-' + s);
-            var dst = document.getElementById('tbl-upside-' + s);
-            if (src && dst) dst.textContent = src.textContent;
-        });
+        function fmtPct(x) {
+            return (x === null || x === undefined) ? '–' : (x * 100).toFixed(1) + '%';
+        }
+
+        fetch('data.json?ts=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                document.getElementById('update-time').textContent = data.updated || '–';
+
+                var tbody = document.getElementById('summary-tbody');
+                var blocks = document.getElementById('symbol-blocks');
+                var tpl = document.getElementById('symbol-template');
+
+                (data.symbols || []).forEach(function (s) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td><a href="#symbol-' + s.symbol + '">' + s.symbol + '</a></td><td>' + fmtPct(s.upside_prob) + '</td>';
+                    tbody.appendChild(tr);
+
+                    var node = tpl.content.cloneNode(true);
+                    var block = node.querySelector('.symbol-block');
+                    block.id = 'symbol-' + s.symbol;
+                    node.querySelector('.sym').textContent = s.symbol;
+                    node.querySelector('.upside').textContent = fmtPct(s.upside_prob);
+                    node.querySelector('.volamp').textContent = fmtPct(s.vol_amp_prob);
+                    var img = node.querySelector('.chart-img');
+                    img.src = 'prediction_chart_' + s.symbol + '.png';
+                    img.alt = s.symbol + ' (HOSE) Price and Volume Forecast Chart';
+                    blocks.appendChild(node);
+                });
+            })
+            .catch(function (err) {
+                document.getElementById('update-time').textContent = 'failed to load';
+                console.error('Failed to load data.json', err);
+            });
     </script>
 </body>
 </html>

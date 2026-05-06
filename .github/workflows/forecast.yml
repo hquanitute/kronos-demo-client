@@ -18,6 +18,9 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+env:
+  KRONOS_SYMBOLS: "BMP,D2D,PC1,LPB,FPT,TCB"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -48,7 +51,7 @@ jobs:
       - name: Stage static site
         run: |
           mkdir -p _site
-          cp index.html style.css prediction_chart_*.png _site/
+          cp index.html style.css data.json prediction_chart_*.png _site/
           cp -r img _site/
 
       - name: Upload Pages artifact

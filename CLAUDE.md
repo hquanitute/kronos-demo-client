@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A self-updating demo site for the **Kronos** financial foundation model. `update_predictions.py` fetches daily K-line data for **multiple HOSE symbols** (`BMP`, `D2D`, `LPB`, `FPT`, `TCB`) via the `vnstock` library, runs a Monte-Carlo forecast with `Kronos-mini` for each, and re-renders per-symbol `prediction_chart_{SYMBOL}.png` files and `index.html` with fresh metrics. **The script itself no longer schedules or deploys** — `.github/workflows/forecast.yml` runs it daily on GitHub Actions and publishes the output via the GitHub Pages artifact pipeline (`actions/upload-pages-artifact` → `actions/deploy-pages`). No forecast commits land on `master` anymore; history stays clean.
+A self-updating demo site for the **Kronos** financial foundation model. `update_predictions.py` fetches daily K-line data for a configurable list of HOSE symbols (default `BMP, D2D, PC1, LPB, FPT, TCB`, set via the `KRONOS_SYMBOLS` env var in `.github/workflows/forecast.yml`) via the `vnstock` library, runs a Monte-Carlo forecast with `Kronos-mini` for each, writes per-symbol `prediction_chart_{SYMBOL}.png` files, and emits a `data.json` payload that `index.html` renders client-side. **The script itself no longer schedules or deploys** — `.github/workflows/forecast.yml` runs it daily on GitHub Actions and publishes the output via the GitHub Pages artifact pipeline (`actions/upload-pages-artifact` → `actions/deploy-pages`). No forecast commits land on `master` anymore; history stays clean.
 
 ## Run it
 
@@ -16,14 +16,14 @@ uv run python update_predictions.py  # run a single forecast cycle locally
 uv add <pkg>                         # add a new dep (never `pip install`)
 ```
 
-`update_predictions.py` now runs **exactly one update cycle and exits** — all scheduling lives in `.github/workflows/forecast.yml` (`cron: "0 1 * * *"` = 01:00 UTC = 08:00 ICT, pre-market). Running locally just regenerates the static files in place; it won't commit or push. To trigger a CI deploy on demand, use `workflow_dispatch` from the Actions tab or `gh workflow run forecast.yml`. There are no tests, linters, or build steps.
+`update_predictions.py` now runs **exactly one update cycle and exits** — all scheduling lives in `.github/workflows/forecast.yml` (`cron: "0 8 * * *"` with `timezone: Asia/Bangkok`, i.e. 08:00 ICT pre-market). Running locally just regenerates the static files in place; it won't commit or push. To trigger a CI deploy on demand, use `workflow_dispatch` from the Actions tab or `gh workflow run forecast.yml`. There are no tests, linters, or build steps.
 
 ## Non-obvious gotchas
 
 - **`MODEL_PATH` is env-overridable.** Locally defaults to the *sibling* `../Kronos_model` (outside the repo); CI overrides via `KRONOS_MODEL_PATH=./.kronos_model_cache` so `actions/cache` can persist HuggingFace weights (`NeoQuasar/Kronos-Tokenizer-2k`, `NeoQuasar/Kronos-mini`) between runs. If you change the pinned model IDs, bump the cache `key` suffix in `forecast.yml` or the workflow will keep restoring stale weights.
-- **The static site is deployed via the Pages artifact job**, not by committing back to `master`. The `build` job stages `index.html`, `style.css`, `prediction_chart.png`, and `img/` into `_site/`, uploads it, and the `deploy` job publishes. **If you add a new static asset, add it to the `Stage static site` step in `forecast.yml` or it won't be served.**
-- **`index.html` is edited by regex**, not a template engine. The update regexes in `update_html()` target one shared anchor (`<strong id="update-time">`) plus per-symbol anchors `<p class="metric-value" id="upside-prob-{SYMBOL}">` and `<p class="metric-value" id="vol-amp-prob-{SYMBOL}">`. Preserve those IDs verbatim (with the symbol suffix) or daily updates will silently no-op for that symbol.
-- **No last-bar drop here.** Unlike the original Binance hourly variant, we do *not* `iloc[:-1]` the dataframe, because the CI job runs pre-market (01:00 UTC / 08:00 ICT) and vnstock's latest row is already a complete previous-session close.
+- **The static site is deployed via the Pages artifact job**, not by committing back to `master`. The `build` job stages `index.html`, `style.css`, `data.json`, `prediction_chart_*.png`, and `img/` into `_site/`, uploads it, and the `deploy` job publishes. **If you add a new static asset, add it to the `Stage static site` step in `forecast.yml` or it won't be served.**
+- **`index.html` is generic and JS-rendered.** It fetches `data.json` (written by `write_data_json()` in `update_predictions.py`) and clones a `<template id="symbol-template">` per entry to build the summary table and per-symbol blocks. There are no per-symbol anchors in the HTML — to change tickers, edit `KRONOS_SYMBOLS` in `forecast.yml` (or the env var locally). Don't reintroduce regex-patching of `index.html`.
+- **No last-bar drop here.** Unlike the original Binance hourly variant, we do *not* `iloc[:-1]` the dataframe, because the CI job runs pre-market (08:00 ICT) and vnstock's latest row is already a complete previous-session close.
 - **`vnstock` has no quote-volume field**, so `fetch_vnstock_data()` synthesizes an `amount` column as `volume × mean(OHLC)` to feed the Kronos predictor the same 6-feature vector (`open,high,low,close,volume,amount`) the model was trained on. Don't remove this.
 - **`DATA_SOURCE` is a vnstock backend identifier** (e.g. `VCI`, `TCBS`, `KBS`, `SSI`). Swap it in `Config` if the current provider rate-limits or returns stale data — the rest of the fetch code is provider-agnostic.
 - **Forecast timestamps use pandas business-day frequency** (`BDay(1)` + `freq='B'`), which skips weekends but **not Vietnamese public holidays**. The x-axis labels on forecast bars may be off by a day or two across Lunar New Year, Reunification Day, etc. — acceptable for a demo, not for trading.
@@ -32,10 +32,10 @@ uv add <pkg>                         # add a new dep (never `pip install`)
 
 ## Code layout
 
-- `update_predictions.py` — config, data fetch, prediction, metrics, plot, HTML patch. `main_task()` loops over all `SYMBOLS`, running the full pipeline per symbol, then calls `update_html()` once with all results. One call from `__main__`, exits when done. No scheduler, no git calls.
-- `.github/workflows/forecast.yml` — cron + `workflow_dispatch` trigger, `uv sync` + `uv run python update_predictions.py`, then stage `_site/` and deploy via `actions/deploy-pages@v4`.
+- `update_predictions.py` — config, data fetch, prediction, metrics, plot, JSON emit. `main_task()` loops over all `SYMBOLS`, running the full pipeline per symbol, then calls `write_data_json()` once with all results. One call from `__main__`, exits when done. No scheduler, no git calls.
+- `.github/workflows/forecast.yml` — cron + `workflow_dispatch` trigger, workflow-level `KRONOS_SYMBOLS` env, `uv sync` + `uv run python update_predictions.py`, then stage `_site/` and deploy via `actions/deploy-pages@v4`.
 - `model/` — vendored copy of the Kronos model code. `kronos.py` defines `KronosTokenizer`, `Kronos` (both `PyTorchModelHubMixin` — loaded via `from_pretrained`), and `KronosPredictor` (the inference wrapper used by `update_predictions.py`). `module.py` holds the transformer blocks and `BSQuantizer`. Treat this directory as upstream code — prefer not to edit it unless syncing from the Kronos repo.
-- `index.html`, `style.css`, `img/logo.png`, `prediction_chart_{SYMBOL}.png` (one per symbol) — the static site served by GitHub Pages.
+- `index.html`, `style.css`, `img/logo.png`, `data.json`, `prediction_chart_{SYMBOL}.png` (one per symbol) — the static site served by GitHub Pages. `data.json` is regenerated each run; the HTML is static and renders from it client-side.
 
 ## How Kronos inference works
 
@@ -66,7 +66,7 @@ The "volatility" paths currently reuse the main prediction (`close_preds_volatil
 
 Tuning knobs live in the `Config` dict at the top of `update_predictions.py`:
 
-- `SYMBOLS` — list of HOSE tickers to forecast; currently `['BMP', 'D2D', 'LPB', 'FPT', 'TCB']`. Add or remove symbols here; the loop in `main_task()` and the regex anchors in `index.html` must stay in sync.
+- `SYMBOLS` — list of HOSE tickers to forecast, derived from the `KRONOS_SYMBOLS` env var (comma-separated; default `BMP,D2D,PC1,LPB,FPT,TCB`). The canonical config lives in the workflow-level `env.KRONOS_SYMBOLS` block in `.github/workflows/forecast.yml`. `index.html` is generic, so changing the list requires no HTML edits.
 - `EXCHANGE` / `DATA_SOURCE` — `HOSE` / `KBS` via vnstock.
 - `INTERVAL='1D'` — daily bars.
 - `HIST_POINTS=360` — ~1.5 years of daily context fed to the model.
@@ -74,6 +74,6 @@ Tuning knobs live in the `Config` dict at the top of `update_predictions.py`:
 - `N_PREDICTIONS=30` — Monte-Carlo sample paths.
 - `VOL_WINDOW=20` — ~1 month of daily bars used as the baseline-volatility reference.
 
-The cadence itself (01:00 UTC daily) lives in `.github/workflows/forecast.yml` (`cron: "0 1 * * *"`). To change it, edit the cron expression there — do *not* add it back to `Config`.
+The cadence itself (08:00 ICT daily) lives in `.github/workflows/forecast.yml` (`cron: "0 8 * * *"` with `timezone: Asia/Bangkok`). To change it, edit the cron/timezone there — do *not* add it back to `Config`.
 
 The two headline metrics in `calculate_metrics` are **upside probability** (share of sampled paths whose final-bar close exceeds the last known close) and **volatility amplification probability** (share of paths whose realized log-return stdev exceeds recent historical stdev).
