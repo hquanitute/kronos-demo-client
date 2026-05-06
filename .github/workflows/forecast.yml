@@ -2,8 +2,9 @@ name: Forecast and Deploy
 
 on:
   schedule:
-    # 01:00 UTC == 08:00 ICT (UTC+7), pre-market for HOSE.
-    - cron: "0 1 * * *"
+    # 08:00 ICT (UTC+7), pre-market for HOSE.
+    - cron: "0 8 * * *"
+      timezone: Asia/Bangkok
   workflow_dispatch: {}
   push:
     branches: [master]
