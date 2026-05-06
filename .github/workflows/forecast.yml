@@ -5,7 +5,12 @@ on:
     # 08:00 ICT (UTC+7), pre-market for HOSE.
     - cron: "0 8 * * *"
       timezone: Asia/Bangkok
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Comma-separated HOSE tickers (overrides KRONOS_SYMBOLS for this run)"
+        required: false
+        default: ""
   push:
     branches: [master]
 
@@ -19,7 +24,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  KRONOS_SYMBOLS: "BMP,D2D,PC1,LPB,FPT,TCB"
+  # Source of truth: GitHub repo variable `KRONOS_SYMBOLS`
+  # (Settings → Secrets and variables → Actions → Variables).
+  # The literal fallback applies only when the repo variable is unset.
+  KRONOS_SYMBOLS: ${{ vars.KRONOS_SYMBOLS || 'BMP,D2D,LPB,FPT,TCB' }}
 
 jobs:
   build:
@@ -46,6 +54,7 @@ jobs:
       - name: Run forecast
         env:
           KRONOS_MODEL_PATH: ./.kronos_model_cache
+          KRONOS_SYMBOLS: ${{ inputs.symbols != '' && inputs.symbols || env.KRONOS_SYMBOLS }}
         run: uv run python update_predictions.py
 
       - name: Stage static site
