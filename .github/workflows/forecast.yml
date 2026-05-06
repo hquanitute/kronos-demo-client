@@ -11,6 +11,10 @@ on:
         description: "Comma-separated HOSE tickers (overrides KRONOS_SYMBOLS for this run)"
         required: false
         default: ""
+      n_inferences:
+        description: "Inference passes per symbol (overrides KRONOS_N_INFERENCES)"
+        required: false
+        default: ""
   push:
     branches: [master]
 
@@ -28,6 +32,9 @@ env:
   # (Settings → Secrets and variables → Actions → Variables).
   # The literal fallback applies only when the repo variable is unset.
   KRONOS_SYMBOLS: ${{ vars.KRONOS_SYMBOLS || 'BMP,D2D,LPB,FPT,TCB' }}
+  # Number of independent inference passes per symbol. Source of truth: repo
+  # variable `KRONOS_N_INFERENCES`. Fallback default is 5.
+  KRONOS_N_INFERENCES: ${{ vars.KRONOS_N_INFERENCES || '5' }}
 
 jobs:
   build:
@@ -55,6 +62,7 @@ jobs:
         env:
           KRONOS_MODEL_PATH: ./.kronos_model_cache
           KRONOS_SYMBOLS: ${{ inputs.symbols != '' && inputs.symbols || env.KRONOS_SYMBOLS }}
+          KRONOS_N_INFERENCES: ${{ inputs.n_inferences != '' && inputs.n_inferences || env.KRONOS_N_INFERENCES }}
         run: uv run python update_predictions.py
 
       - name: Stage static site

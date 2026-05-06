@@ -28,6 +28,12 @@ Config = {
     "PRED_HORIZON": 10,     # trading-day forecast horizon
     "N_PREDICTIONS": 30,
     "VOL_WINDOW": 20,       # ~1 month of trading days for baseline vol
+    # Number of independent inference passes per symbol. Each pass runs the
+    # full Monte-Carlo predictor (N_PREDICTIONS paths) and yields one
+    # upside-probability sample. The summary table renders all N values plus
+    # their mean. Override via the `KRONOS_N_INFERENCES` env var (set in the
+    # workflow as a repo variable / dispatch input).
+    "N_INFERENCES": int(os.environ.get("KRONOS_N_INFERENCES", "5")),
 }
 
 
@@ -182,9 +188,12 @@ def write_data_json(now_utc_str, results):
     data_path = Config["REPO_PATH"] / 'data.json'
     payload = {
         "updated": now_utc_str,
+        "n_inferences": Config["N_INFERENCES"],
         "symbols": [
             {
                 "symbol": symbol,
+                "upside_runs": [float(x) for x in metrics.get('upside_runs', [])],
+                "upside_mean": float(metrics['upside_mean']),
                 "upside_prob": float(metrics['upside_prob']),
                 "vol_amp_prob": float(metrics['vol_amp_prob']),
             }
@@ -208,21 +217,43 @@ def main_task(model):
     now_utc_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
     results = {}
 
+    n_inferences = Config["N_INFERENCES"]
+
     for symbol in Config["SYMBOLS"]:
-        print(f"\n{'=' * 40}\nProcessing symbol: {symbol}\n{'=' * 40}")
+        print(f"\n{'=' * 40}\nProcessing symbol: {symbol} ({n_inferences} inference passes)\n{'=' * 40}")
         try:
             df_full = fetch_vnstock_data(symbol)
-            close_preds, volume_preds, v_close_preds = make_prediction(df_full, model)
-
             hist_df_for_plot = df_full.tail(Config["HIST_POINTS"])
             hist_df_for_metrics = df_full.tail(Config["VOL_WINDOW"])
 
-            upside_prob, vol_amp_prob = calculate_metrics(hist_df_for_metrics, close_preds, v_close_preds)
-            create_plot(hist_df_for_plot, close_preds, volume_preds, symbol)
+            upside_runs = []
+            last_close_preds = None
+            last_volume_preds = None
+            last_vol_amp_prob = None
 
-            results[symbol] = {'upside_prob': upside_prob, 'vol_amp_prob': vol_amp_prob}
+            for i in range(n_inferences):
+                print(f"\n--- {symbol} inference pass {i + 1}/{n_inferences} ---")
+                close_preds, volume_preds, v_close_preds = make_prediction(df_full, model)
+                upside_prob, vol_amp_prob = calculate_metrics(hist_df_for_metrics, close_preds, v_close_preds)
+                upside_runs.append(float(upside_prob))
+                last_close_preds = close_preds
+                last_volume_preds = volume_preds
+                last_vol_amp_prob = float(vol_amp_prob)
+                del v_close_preds
+                gc.collect()
 
-            del df_full, close_preds, volume_preds, v_close_preds
+            # Chart and the per-symbol block use the latest (last) inference.
+            create_plot(hist_df_for_plot, last_close_preds, last_volume_preds, symbol)
+
+            upside_mean = float(np.mean(upside_runs)) if upside_runs else 0.0
+            results[symbol] = {
+                'upside_runs': upside_runs,
+                'upside_mean': upside_mean,
+                'upside_prob': upside_runs[-1] if upside_runs else 0.0,
+                'vol_amp_prob': last_vol_amp_prob if last_vol_amp_prob is not None else 0.0,
+            }
+
+            del df_full, last_close_preds, last_volume_preds
             del hist_df_for_plot, hist_df_for_metrics
             gc.collect()
         except Exception as e:

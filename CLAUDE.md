@@ -71,7 +71,8 @@ Tuning knobs live in the `Config` dict at the top of `update_predictions.py`:
 - `INTERVAL='1D'` — daily bars.
 - `HIST_POINTS=360` — ~1.5 years of daily context fed to the model.
 - `PRED_HORIZON=10` — trading-day forecast horizon.
-- `N_PREDICTIONS=30` — Monte-Carlo sample paths.
+- `N_PREDICTIONS=30` — Monte-Carlo sample paths inside one inference call.
+- `N_INFERENCES` — number of independent inference passes per symbol (each one a full Monte-Carlo run). Default `5`, sourced from the `KRONOS_N_INFERENCES` env var. Canonical config is the repo variable `KRONOS_N_INFERENCES` in `forecast.yml`; `workflow_dispatch` accepts a `n_inferences` override. The summary table renders one column per pass plus a Mean column. The per-symbol block (chart + headline metrics) shows only the **last** pass.
 - `VOL_WINDOW=20` — ~1 month of daily bars used as the baseline-volatility reference.
 
 The cadence itself (08:00 ICT daily) lives in `.github/workflows/forecast.yml` (`cron: "0 8 * * *"` with `timezone: Asia/Bangkok`). To change it, edit the cron/timezone there — do *not* add it back to `Config`.

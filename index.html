@@ -26,12 +26,7 @@
             </div>
 
             <table class="summary-table">
-                <thead>
-                    <tr>
-                        <th>Symbol</th>
-                        <th>Upside Probability (Next 10 Trading Days)</th>
-                    </tr>
-                </thead>
+                <thead id="summary-thead"></thead>
                 <tbody id="summary-tbody"></tbody>
             </table>
 
@@ -97,13 +92,26 @@
             .then(function (data) {
                 document.getElementById('update-time').textContent = data.updated || '–';
 
+                var thead = document.getElementById('summary-thead');
                 var tbody = document.getElementById('summary-tbody');
                 var blocks = document.getElementById('symbol-blocks');
                 var tpl = document.getElementById('symbol-template');
 
-                (data.symbols || []).forEach(function (s) {
+                var symbols = data.symbols || [];
+                var n = data.n_inferences || (symbols[0] && symbols[0].upside_runs ? symbols[0].upside_runs.length : 0);
+
+                var headRow = '<tr><th rowspan="2">Symbol</th><th colspan="' + n + '">Upside Probability per Inference Run</th><th rowspan="2">Mean</th></tr><tr>';
+                for (var i = 0; i < n; i++) headRow += '<th>Run ' + (i + 1) + '</th>';
+                headRow += '</tr>';
+                thead.innerHTML = headRow;
+
+                symbols.forEach(function (s) {
+                    var runs = s.upside_runs || [];
+                    var cells = '<td><a href="#symbol-' + s.symbol + '">' + s.symbol + '</a></td>';
+                    for (var i = 0; i < n; i++) cells += '<td>' + fmtPct(runs[i]) + '</td>';
+                    cells += '<td><strong>' + fmtPct(s.upside_mean) + '</strong></td>';
                     var tr = document.createElement('tr');
-                    tr.innerHTML = '<td><a href="#symbol-' + s.symbol + '">' + s.symbol + '</a></td><td>' + fmtPct(s.upside_prob) + '</td>';
+                    tr.innerHTML = cells;
                     tbody.appendChild(tr);
 
                     var node = tpl.content.cloneNode(true);
