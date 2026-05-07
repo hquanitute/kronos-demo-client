@@ -63,6 +63,10 @@ jobs:
           KRONOS_MODEL_PATH: ./.kronos_model_cache
           KRONOS_SYMBOLS: ${{ inputs.symbols != '' && inputs.symbols || env.KRONOS_SYMBOLS }}
           KRONOS_N_INFERENCES: ${{ inputs.n_inferences != '' && inputs.n_inferences || env.KRONOS_N_INFERENCES }}
+          # Authenticated HF Hub requests (higher rate limits, faster downloads).
+          # Set repo secret `HF_TOKEN` (Settings → Secrets and variables → Actions → Secrets).
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HUGGING_FACE_HUB_TOKEN: ${{ secrets.HF_TOKEN }}
         run: uv run python update_predictions.py
 
       - name: Stage static site
