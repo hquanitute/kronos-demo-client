@@ -87,33 +87,111 @@
             return (x === null || x === undefined) ? '–' : (x * 100).toFixed(1) + '%';
         }
 
+        // Sort state: { key: 'symbol' | 'run-<i>' | 'mean' | null, dir: 'asc' | 'desc' | null }
+        var sortState = { key: null, dir: null };
+        var originalSymbols = [];
+        var nRuns = 0;
+
+        function valueFor(s, key) {
+            if (key === 'symbol') return s.symbol;
+            if (key === 'mean') return s.upside_mean;
+            if (key && key.indexOf('run-') === 0) {
+                var i = parseInt(key.slice(4), 10);
+                return (s.upside_runs || [])[i];
+            }
+            return null;
+        }
+
+        function sortedSymbols() {
+            if (!sortState.key || !sortState.dir) return originalSymbols.slice();
+            var arr = originalSymbols.slice();
+            var key = sortState.key;
+            var sign = sortState.dir === 'asc' ? 1 : -1;
+            arr.sort(function (a, b) {
+                var va = valueFor(a, key);
+                var vb = valueFor(b, key);
+                if (key === 'symbol') {
+                    return sign * String(va).localeCompare(String(vb));
+                }
+                if (va === undefined || va === null) return 1;
+                if (vb === undefined || vb === null) return -1;
+                return sign * (va - vb);
+            });
+            return arr;
+        }
+
+        function arrow(key) {
+            if (sortState.key !== key || !sortState.dir) return ' <span class="sort-ind">⇅</span>';
+            return sortState.dir === 'asc' ? ' <span class="sort-ind active">▲</span>' : ' <span class="sort-ind active">▼</span>';
+        }
+
+        function cycleSort(key) {
+            if (sortState.key !== key) {
+                sortState = { key: key, dir: 'asc' };
+            } else if (sortState.dir === 'asc') {
+                sortState.dir = 'desc';
+            } else {
+                // back to default order
+                sortState = { key: null, dir: null };
+            }
+            renderTable();
+        }
+
+        function renderHead() {
+            var thead = document.getElementById('summary-thead');
+            var top = '<tr>'
+                + '<th rowspan="2" class="sortable" data-key="symbol">Symbol' + arrow('symbol') + '</th>'
+                + '<th colspan="' + nRuns + '">Upside Probability per Inference Run</th>'
+                + '<th rowspan="2" class="sortable" data-key="mean">Mean' + arrow('mean') + '</th>'
+                + '</tr><tr>';
+            for (var i = 0; i < nRuns; i++) {
+                var k = 'run-' + i;
+                top += '<th class="sortable" data-key="' + k + '">Run ' + (i + 1) + arrow(k) + '</th>';
+            }
+            top += '</tr>';
+            thead.innerHTML = top;
+            var ths = thead.querySelectorAll('th.sortable');
+            for (var j = 0; j < ths.length; j++) {
+                (function (th) {
+                    th.addEventListener('click', function () { cycleSort(th.getAttribute('data-key')); });
+                })(ths[j]);
+            }
+        }
+
+        function renderBody() {
+            var tbody = document.getElementById('summary-tbody');
+            tbody.innerHTML = '';
+            sortedSymbols().forEach(function (s) {
+                var runs = s.upside_runs || [];
+                var cells = '<td><a href="#symbol-' + s.symbol + '">' + s.symbol + '</a></td>';
+                for (var i = 0; i < nRuns; i++) cells += '<td>' + fmtPct(runs[i]) + '</td>';
+                cells += '<td><strong>' + fmtPct(s.upside_mean) + '</strong></td>';
+                var tr = document.createElement('tr');
+                tr.innerHTML = cells;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderTable() {
+            renderHead();
+            renderBody();
+        }
+
         fetch('data.json?ts=' + Date.now())
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 document.getElementById('update-time').textContent = data.updated || '–';
 
-                var thead = document.getElementById('summary-thead');
-                var tbody = document.getElementById('summary-tbody');
                 var blocks = document.getElementById('symbol-blocks');
                 var tpl = document.getElementById('symbol-template');
 
-                var symbols = data.symbols || [];
-                var n = data.n_inferences || (symbols[0] && symbols[0].upside_runs ? symbols[0].upside_runs.length : 0);
+                originalSymbols = data.symbols || [];
+                nRuns = data.n_inferences || (originalSymbols[0] && originalSymbols[0].upside_runs ? originalSymbols[0].upside_runs.length : 0);
 
-                var headRow = '<tr><th rowspan="2">Symbol</th><th colspan="' + n + '">Upside Probability per Inference Run</th><th rowspan="2">Mean</th></tr><tr>';
-                for (var i = 0; i < n; i++) headRow += '<th>Run ' + (i + 1) + '</th>';
-                headRow += '</tr>';
-                thead.innerHTML = headRow;
+                renderTable();
 
-                symbols.forEach(function (s) {
-                    var runs = s.upside_runs || [];
-                    var cells = '<td><a href="#symbol-' + s.symbol + '">' + s.symbol + '</a></td>';
-                    for (var i = 0; i < n; i++) cells += '<td>' + fmtPct(runs[i]) + '</td>';
-                    cells += '<td><strong>' + fmtPct(s.upside_mean) + '</strong></td>';
-                    var tr = document.createElement('tr');
-                    tr.innerHTML = cells;
-                    tbody.appendChild(tr);
-
+                // Symbol blocks always render in the original (KRONOS_SYMBOLS) order.
+                originalSymbols.forEach(function (s) {
                     var node = tpl.content.cloneNode(true);
                     var block = node.querySelector('.symbol-block');
                     block.id = 'symbol-' + s.symbol;
